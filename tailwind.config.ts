@@ -13,6 +13,9 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -57,6 +60,32 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        success: {
+          DEFAULT: "hsl(var(--success))",
+          foreground: "hsl(var(--success-foreground))",
+        },
+        warning: {
+          DEFAULT: "hsl(var(--warning))",
+          foreground: "hsl(var(--warning-foreground))",
+        },
+        info: {
+          DEFAULT: "hsl(var(--info))",
+          foreground: "hsl(var(--info-foreground))",
+        },
+        scanning: "hsl(var(--scanning))",
+        qualification: "hsl(var(--qualification))",
+        "in-progress": "hsl(var(--in-progress))",
+        "tech-mapped": "hsl(var(--tech-mapped))",
+        priced: "hsl(var(--priced))",
+        submitted: "hsl(var(--submitted))",
+        qualified: "hsl(var(--qualified))",
+        "sales-agent": "hsl(var(--sales-agent))",
+        "technical-agent": "hsl(var(--technical-agent))",
+        "pricing-agent": "hsl(var(--pricing-agent))",
+        "main-agent": "hsl(var(--main-agent))",
+        "confidence-high": "hsl(var(--confidence-high))",
+        "confidence-medium": "hsl(var(--confidence-medium))",
+        "confidence-low": "hsl(var(--confidence-low))",
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -65,25 +94,32 @@ export default {
       },
       keyframes: {
         "accordion-down": {
-          from: {
-            height: "0",
-          },
-          to: {
-            height: "var(--radix-accordion-content-height)",
-          },
+          from: { height: "0" },
+          to: { height: "var(--radix-accordion-content-height)" },
         },
         "accordion-up": {
-          from: {
-            height: "var(--radix-accordion-content-height)",
-          },
-          to: {
-            height: "0",
-          },
+          from: { height: "var(--radix-accordion-content-height)" },
+          to: { height: "0" },
+        },
+        shimmer: {
+          "0%": { transform: "translateX(-100%)" },
+          "100%": { transform: "translateX(100%)" },
+        },
+        "progress-grow": {
+          "0%": { width: "0%" },
+          "100%": { width: "var(--progress-width)" },
         },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        shimmer: "shimmer 2s infinite",
+        "progress-grow": "progress-grow 1s ease-out forwards",
+      },
+      boxShadow: {
+        'card': '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)',
+        'card-hover': '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
+        'elevated': '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
       },
     },
   },
