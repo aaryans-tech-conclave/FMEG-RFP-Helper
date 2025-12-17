@@ -339,10 +339,3 @@ Calculation shown:
 - **Dedicated RFP management application**
   - Web/mobile app to track discovery, agent outputs, pricing summaries, and submission status in one interface
 
----
-
-## Repo Notes / Suggested README Add-ons (Optional)
-- Add a “Quickstart” section (env vars, database setup, run scripts)
-- Add an “API + WebSocket Statuses” section (pending → routing → building → submitted → confirmed/failed)
-- Add a “Data Model” section (RFP JSON schema, SKU schema, match tables, pricing tables)
-- Add a “Demo Walkthrough” section mapping directly to Slides 4–5
