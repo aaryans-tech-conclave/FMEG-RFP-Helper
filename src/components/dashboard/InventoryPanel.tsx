@@ -1,6 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { Search, Plus, ArrowUpDown } from "lucide-react";
 
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -17,6 +26,17 @@ import { supabase } from "@/lib/supabase";
 
 type MarginBand = "low" | "mid" | "high" | "unknown";
 type Unit = "m" | "nos" | string;
+
+const CONDUCTORS = ["CU", "AL"] as const;
+const INSULATIONS = ["XLPE", "PVC", "FR-XLPE", "HRXLPE", "EPR"] as const;
+const CORES = ["1C", "2C", "3C", "3.5C", "4C"] as const;
+const CSAS = [50, 70, 95, 120, 150, 185, 240, 300, 400, 630] as const;
+
+// Single final segment for now (per your current DB schema)
+const SPECIALS = ["AR", "UA", "STA", "ATA", "LT", "HT", "FR", "FRLS"] as const;
+
+const MARGINS = ["low", "mid", "high"] as const;
+const UNITS = ["m", "nos"] as const;
 
 type InventoryRow = {
   sku_id: string;
@@ -49,8 +69,12 @@ export const InventoryPanel = () => {
   // UI controls
   const [searchQuery, setSearchQuery] = useState("");
   const [unitFilter, setUnitFilter] = useState<"all" | "m" | "nos">("all");
-  const [marginFilter, setMarginFilter] = useState<"all" | "low" | "mid" | "high">("all");
-  const [stockFilter, setStockFilter] = useState<"all" | "in_stock" | "out_of_stock">("all");
+  const [marginFilter, setMarginFilter] = useState<
+    "all" | "low" | "mid" | "high"
+  >("all");
+  const [stockFilter, setStockFilter] = useState<
+    "all" | "in_stock" | "out_of_stock"
+  >("all");
 
   const [sortKey, setSortKey] = useState<SortKey>("updated_at");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
@@ -58,33 +82,57 @@ export const InventoryPanel = () => {
   // pagination
   const [page, setPage] = useState(1);
 
+  // add dialog state
+  const [addOpen, setAddOpen] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+
+  // add form state
+  const [form, setForm] = useState({
+    conductor: "CU",
+    insulation: "XLPE",
+    cores: "3C",
+    csa: 240,
+    special: "AR",
+
+    current_stock_qty: 0,
+    unit: "m",
+    lead_time_days: 0,
+    avg_cost: 0,
+    base_price: 0,
+    margin_band: "mid",
+  });
+
+  const fetchInventory = async () => {
+    const { data, error } = await supabase
+      .from("inventory")
+      .select(
+        "sku_id,current_stock_qty,unit,lead_time_days,avg_cost,base_price,margin_band,created_at,updated_at"
+      );
+
+    if (error) throw error;
+
+    const mapped: InventoryRow[] = (data ?? []).map((r: any) => ({
+      sku_id: r.sku_id,
+      current_stock_qty: Number(r.current_stock_qty),
+      unit: r.unit,
+      lead_time_days: Number(r.lead_time_days),
+      avg_cost: Number(r.avg_cost),
+      base_price: Number(r.base_price),
+      margin_band: String(r.margin_band ?? "unknown"),
+      created_at: r.created_at,
+      updated_at: r.updated_at,
+    }));
+
+    setItems(mapped);
+  };
+
   useEffect(() => {
     const run = async () => {
       try {
         setLoading(true);
         setError(null);
-
-        const { data, error } = await supabase
-          .from("inventory")
-          .select(
-            "sku_id,current_stock_qty,unit,lead_time_days,avg_cost,base_price,margin_band,created_at,updated_at"
-          );
-
-        if (error) throw error;
-
-        const mapped: InventoryRow[] = (data ?? []).map((r: any) => ({
-          sku_id: r.sku_id,
-          current_stock_qty: Number(r.current_stock_qty),
-          unit: r.unit,
-          lead_time_days: Number(r.lead_time_days),
-          avg_cost: Number(r.avg_cost),
-          base_price: Number(r.base_price),
-          margin_band: String(r.margin_band ?? "unknown"),
-          created_at: r.created_at,
-          updated_at: r.updated_at,
-        }));
-
-        setItems(mapped);
+        await fetchInventory();
       } catch (e: any) {
         setError(e?.message ?? "Failed to load inventory");
         setItems([]);
@@ -94,7 +142,59 @@ export const InventoryPanel = () => {
     };
 
     run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const buildSkuId = () =>
+    `${form.conductor}_${form.insulation}_${form.cores}_${form.csa}_${form.special}`;
+
+  const handleAddToInventory = async () => {
+    try {
+      setAdding(true);
+      setAddError(null);
+
+      const sku_id = buildSkuId();
+
+      if (!sku_id) throw new Error("SKU is invalid");
+      if (Number(form.current_stock_qty) < 0) throw new Error("Stock cannot be negative");
+      if (Number(form.lead_time_days) < 0) throw new Error("Lead time cannot be negative");
+      if (Number(form.avg_cost) < 0) throw new Error("Avg cost cannot be negative");
+      if (Number(form.base_price) < 0) throw new Error("Base price cannot be negative");
+
+      // ✅ UPSERT: insert if new, update if sku_id already exists
+      const { error } = await supabase
+        .from("inventory")
+        .upsert(
+          {
+            sku_id,
+            current_stock_qty: Number(form.current_stock_qty),
+            unit: form.unit,
+            lead_time_days: Number(form.lead_time_days),
+            avg_cost: Number(form.avg_cost),
+            base_price: Number(form.base_price),
+            margin_band: form.margin_band,
+          },
+          { onConflict: "sku_id" }
+        );
+
+      if (error) throw new Error(error.message);
+
+      await fetchInventory();
+
+      setAddOpen(false);
+      setForm((f) => ({
+        ...f,
+        current_stock_qty: 0,
+        lead_time_days: 0,
+        avg_cost: 0,
+        base_price: 0,
+      }));
+    } catch (e: any) {
+      setAddError(e?.message ?? "Failed to add item");
+    } finally {
+      setAdding(false);
+    }
+  };
 
   const filteredSorted = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -250,10 +350,225 @@ export const InventoryPanel = () => {
             {sortDir === "asc" ? "Asc" : "Desc"}
           </Button>
 
-          <Button className="h-9">
+          <Button
+            className="h-9"
+            onClick={() => {
+              setAddError(null);
+              setAddOpen(true);
+            }}
+          >
             <Plus className="h-4 w-4 mr-2" />
             Add to Inventory
           </Button>
+
+          <Dialog open={addOpen} onOpenChange={setAddOpen}>
+            <DialogContent className="w-[700px] max-w-[92vw] origin-top [transform:scale(0.75)_translateX(-60%)_translateY(-50%)]">
+              <DialogHeader>
+                <DialogTitle>Add Inventory Item</DialogTitle>
+              </DialogHeader>
+
+              <div className="rounded-md border border-border bg-secondary/30 p-3">
+                <p className="text-xs text-muted-foreground">SKU Preview</p>
+                <p className="text-sm font-semibold text-foreground">{buildSkuId()}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 mt-2">
+                <div className="space-y-2">
+                  <Label>Conductor</Label>
+                  <Select
+                    value={form.conductor}
+                    onValueChange={(v) => setForm((f) => ({ ...f, conductor: v }))}
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CONDUCTORS.map((x) => (
+                        <SelectItem key={x} value={x}>
+                          {x}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Insulation / Construction</Label>
+                  <Select
+                    value={form.insulation}
+                    onValueChange={(v) => setForm((f) => ({ ...f, insulation: v }))}
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {INSULATIONS.map((x) => (
+                        <SelectItem key={x} value={x}>
+                          {x}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Cores</Label>
+                  <Select
+                    value={form.cores}
+                    onValueChange={(v) => setForm((f) => ({ ...f, cores: v }))}
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CORES.map((x) => (
+                        <SelectItem key={x} value={x}>
+                          {x}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>CSA</Label>
+                  <Select
+                    value={String(form.csa)}
+                    onValueChange={(v) => setForm((f) => ({ ...f, csa: Number(v) }))}
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CSAS.map((x) => (
+                        <SelectItem key={x} value={String(x)}>
+                          {x}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Sheath / Armour / Special</Label>
+                  <Select
+                    value={form.special}
+                    onValueChange={(v) => setForm((f) => ({ ...f, special: v }))}
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SPECIALS.map((x) => (
+                        <SelectItem key={x} value={x}>
+                          {x}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Margin</Label>
+                  <Select
+                    value={form.margin_band}
+                    onValueChange={(v) => setForm((f) => ({ ...f, margin_band: v }))}
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MARGINS.map((x) => (
+                        <SelectItem key={x} value={x}>
+                          {x}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Stock</Label>
+                  <Input
+                    className="h-9"
+                    type="number"
+                    min={0}
+                    value={form.current_stock_qty}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, current_stock_qty: Number(e.target.value) }))
+                    }
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Unit</Label>
+                  <Select
+                    value={form.unit}
+                    onValueChange={(v) => setForm((f) => ({ ...f, unit: v }))}
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {UNITS.map((x) => (
+                        <SelectItem key={x} value={x}>
+                          {x}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Lead Time (days)</Label>
+                  <Input
+                    className="h-9"
+                    type="number"
+                    min={0}
+                    value={form.lead_time_days}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, lead_time_days: Number(e.target.value) }))
+                    }
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Avg Cost</Label>
+                  <Input
+                    className="h-9"
+                    type="number"
+                    min={0}
+                    value={form.avg_cost}
+                    onChange={(e) => setForm((f) => ({ ...f, avg_cost: Number(e.target.value) }))}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Base Price</Label>
+                  <Input
+                    className="h-9"
+                    type="number"
+                    min={0}
+                    value={form.base_price}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, base_price: Number(e.target.value) }))
+                    }
+                  />
+                </div>
+              </div>
+
+              {addError && <p className="text-sm text-destructive mt-2">{addError}</p>}
+
+              <DialogFooter className="mt-4">
+                <Button variant="outline" onClick={() => setAddOpen(false)} disabled={adding}>
+                  Cancel
+                </Button>
+                <Button onClick={handleAddToInventory} disabled={adding}>
+                  {adding ? "Adding…" : "Add Item"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
@@ -284,9 +599,7 @@ export const InventoryPanel = () => {
                 <td className="py-3 px-4 text-sm">
                   <span
                     className={cn(
-                      x.current_stock_qty === 0
-                        ? "text-destructive font-medium"
-                        : "text-foreground"
+                      x.current_stock_qty === 0 ? "text-destructive font-medium" : "text-foreground"
                     )}
                   >
                     {x.current_stock_qty}
@@ -294,9 +607,7 @@ export const InventoryPanel = () => {
                 </td>
 
                 <td className="py-3 px-4 text-sm text-muted-foreground">{x.unit}</td>
-                <td className="py-3 px-4 text-sm text-muted-foreground">
-                  {x.lead_time_days} days
-                </td>
+                <td className="py-3 px-4 text-sm text-muted-foreground">{x.lead_time_days} days</td>
                 <td className="py-3 px-4 text-sm text-muted-foreground">{x.avg_cost}</td>
                 <td className="py-3 px-4 text-sm text-muted-foreground">{x.base_price}</td>
 
