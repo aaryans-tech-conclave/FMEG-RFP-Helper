@@ -6,6 +6,7 @@ import { LiveRFPStatus } from "@/components/dashboard/LiveRFPStatus";
 import { CalendarWidget } from "@/components/dashboard/CalendarWidget";
 import { DeadlinesTable } from "@/components/dashboard/DeadlinesTable";
 import { ReviewPanel } from "@/components/dashboard/ReviewPanel";
+import { InventoryPanel } from "@/components/dashboard/InventoryPanel";
 
 const statsData = [
   {
@@ -97,6 +98,9 @@ const Index = () => {
             stage="Tech Mapped"
           />
         )}
+
+        {/* Inventory Panel */}
+        <InventoryPanel />
       </div>
     </div>
   );
