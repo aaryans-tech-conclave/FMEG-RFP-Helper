@@ -39,6 +39,8 @@ type SortKey =
   | "margin_band"
   | "updated_at";
 
+const PAGE_SIZE = 10;
+
 export const InventoryPanel = () => {
   const [items, setItems] = useState<InventoryRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,6 +54,9 @@ export const InventoryPanel = () => {
 
   const [sortKey, setSortKey] = useState<SortKey>("updated_at");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  // pagination
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     const run = async () => {
@@ -67,7 +72,6 @@ export const InventoryPanel = () => {
 
         if (error) throw error;
 
-        // supabase returns numeric possibly as number; keep defensive parsing
         const mapped: InventoryRow[] = (data ?? []).map((r: any) => ({
           sku_id: r.sku_id,
           current_stock_qty: Number(r.current_stock_qty),
@@ -96,16 +100,12 @@ export const InventoryPanel = () => {
     const q = searchQuery.trim().toLowerCase();
 
     let arr = items.filter((x) => {
-      const matchesSearch =
-        !q ||
-        x.sku_id.toLowerCase().includes(q);
+      const matchesSearch = !q || x.sku_id.toLowerCase().includes(q);
 
-      const matchesUnit =
-        unitFilter === "all" || x.unit === unitFilter;
+      const matchesUnit = unitFilter === "all" || x.unit === unitFilter;
 
       const mb = (x.margin_band?.toLowerCase() as MarginBand) || "unknown";
-      const matchesMargin =
-        marginFilter === "all" || mb === marginFilter;
+      const matchesMargin = marginFilter === "all" || mb === marginFilter;
 
       const matchesStock =
         stockFilter === "all" ||
@@ -121,7 +121,6 @@ export const InventoryPanel = () => {
       const va: any = a[sortKey];
       const vb: any = b[sortKey];
 
-      // handle string sort vs numeric sort
       if (sortKey === "sku_id" || sortKey === "margin_band") {
         return String(va).localeCompare(String(vb)) * dir;
       }
@@ -134,11 +133,31 @@ export const InventoryPanel = () => {
     return arr;
   }, [items, searchQuery, unitFilter, marginFilter, stockFilter, sortKey, sortDir]);
 
+  // reset to page 1 when filters/sort/search change
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, unitFilter, marginFilter, stockFilter, sortKey, sortDir]);
+
   const totals = useMemo(() => {
     const totalSkus = filteredSorted.length;
     const outOfStock = filteredSorted.filter((x) => x.current_stock_qty === 0).length;
     return { totalSkus, outOfStock };
   }, [filteredSorted]);
+
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(filteredSorted.length / PAGE_SIZE)),
+    [filteredSorted.length]
+  );
+
+  const pageItems = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return filteredSorted.slice(start, start + PAGE_SIZE);
+  }, [filteredSorted, page]);
+
+  // keep page valid if results shrink
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   const marginBadge = (mb: string) => {
     const v = mb.toLowerCase();
@@ -150,15 +169,20 @@ export const InventoryPanel = () => {
 
   const toggleSortDir = () => setSortDir((d) => (d === "asc" ? "desc" : "asc"));
 
+  if (loading) return <Card className="p-5">Loading…</Card>;
+  if (error) return <Card className="p-5">Error: {error}</Card>;
+
+  const startNum = filteredSorted.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const endNum = Math.min(page * PAGE_SIZE, filteredSorted.length);
+
   return (
     <Card className="p-5 bg-card border border-border">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-5">
         <div className="space-y-1">
           <h3 className="font-semibold text-foreground text-lg">Manage your Inventory</h3>
           <p className="text-xs text-muted-foreground">
-            {loading ? "Loading…" : `${totals.totalSkus} SKUs • ${totals.outOfStock} out of stock`}
+            {`${totals.totalSkus} SKUs • ${totals.outOfStock} out of stock`}
           </p>
-          {error && <p className="text-xs text-destructive">{error}</p>}
         </div>
 
         <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
@@ -250,18 +274,29 @@ export const InventoryPanel = () => {
           </thead>
 
           <tbody>
-            {filteredSorted.map((x) => (
-              <tr key={x.sku_id} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
+            {pageItems.map((x) => (
+              <tr
+                key={x.sku_id}
+                className="border-b border-border/50 hover:bg-secondary/30 transition-colors"
+              >
                 <td className="py-3 px-4 text-sm font-medium text-foreground">{x.sku_id}</td>
 
                 <td className="py-3 px-4 text-sm">
-                  <span className={cn(x.current_stock_qty === 0 ? "text-destructive font-medium" : "text-foreground")}>
+                  <span
+                    className={cn(
+                      x.current_stock_qty === 0
+                        ? "text-destructive font-medium"
+                        : "text-foreground"
+                    )}
+                  >
                     {x.current_stock_qty}
                   </span>
                 </td>
 
                 <td className="py-3 px-4 text-sm text-muted-foreground">{x.unit}</td>
-                <td className="py-3 px-4 text-sm text-muted-foreground">{x.lead_time_days} days</td>
+                <td className="py-3 px-4 text-sm text-muted-foreground">
+                  {x.lead_time_days} days
+                </td>
                 <td className="py-3 px-4 text-sm text-muted-foreground">{x.avg_cost}</td>
                 <td className="py-3 px-4 text-sm text-muted-foreground">{x.base_price}</td>
 
@@ -280,17 +315,47 @@ export const InventoryPanel = () => {
                 </td>
               </tr>
             ))}
+
+            {pageItems.length === 0 && (
+              <tr>
+                <td colSpan={9} className="py-10 text-center text-sm text-muted-foreground">
+                  No results found.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
 
-      <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4 pt-4 border-t border-border">
         <span className="text-sm text-muted-foreground">
-          Showing {filteredSorted.length} of {items.length} SKUs
+          Showing {startNum}-{endNum} of {filteredSorted.length} (filtered) • {items.length} total
         </span>
-        <span className="text-sm text-muted-foreground">
-          Tip: search by SKU like <span className="font-medium">CU_XLPE</span>
-        </span>
+
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            className="h-9"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page === 1}
+          >
+            Prev
+          </Button>
+
+          <span className="text-sm text-muted-foreground">
+            Page <span className="font-medium text-foreground">{page}</span> /{" "}
+            <span className="font-medium text-foreground">{totalPages}</span>
+          </span>
+
+          <Button
+            variant="outline"
+            className="h-9"
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages}
+          >
+            Next
+          </Button>
+        </div>
       </div>
     </Card>
   );
