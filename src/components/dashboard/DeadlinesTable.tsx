@@ -1,8 +1,8 @@
-import { useState } from "react";
-import { Search, Filter, ChevronDown } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Search, Filter } from "lucide-react";
+
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/lib/supabase";
 
 type Stage = "tech-mapped" | "priced" | "submitted" | "qualified";
 type Agent = "Technical Agent" | "Pricing Agent" | "Main Agent" | "Sales Agent";
@@ -41,43 +42,96 @@ const agentConfig: Record<Agent, string> = {
   "Sales Agent": "bg-destructive/10 text-destructive",
 };
 
-const mockDeadlines: RFPDeadline[] = [
-  { id: "RFP-239", client: "NTPC", dueDate: "Nov 18, 2025", stage: "tech-mapped", confidence: 93, assignedAgent: "Technical Agent", stockRequirement: "2 km 240 mm² Cable" },
-  { id: "RFP-240", client: "GAIL", dueDate: "Nov 22, 2025", stage: "priced", confidence: 88, assignedAgent: "Pricing Agent", stockRequirement: "800 m Copper Wire" },
-  { id: "RFP-241", client: "PWD Tamil Nadu", dueDate: "Nov 25, 2025", stage: "submitted", confidence: 96, assignedAgent: "Main Agent", stockRequirement: "—" },
-  { id: "RFP-242", client: "Tech Solutions Inc.", dueDate: "Nov 10, 2025", daysLeft: 3, stage: "qualified", confidence: 91, assignedAgent: "Sales Agent", stockRequirement: "500 m Fiber Cable" },
-  { id: "RFP-243", client: "Global Manufacturing Co.", dueDate: "Nov 12, 2025", daysLeft: 5, stage: "tech-mapped", confidence: 85, assignedAgent: "Technical Agent", stockRequirement: "1.2 km Power Line" },
-  { id: "RFP-244", client: "Healthcare Systems Ltd.", dueDate: "Nov 8, 2025", daysLeft: 1, stage: "submitted", confidence: 94, assignedAgent: "Pricing Agent", stockRequirement: "—" },
-  { id: "RFP-245", client: "Finance Corp", dueDate: "Nov 15, 2025", stage: "priced", confidence: 72, assignedAgent: "Pricing Agent", stockRequirement: "300 m Cat6 Cable" },
-  { id: "RFP-246", client: "Energy Solutions Group", dueDate: "Nov 9, 2025", daysLeft: 2, stage: "qualified", confidence: 68, assignedAgent: "Sales Agent", stockRequirement: "900 m HT Cable" },
-];
-
 const getConfidenceColor = (confidence: number): string => {
   if (confidence >= 90) return "bg-success";
   if (confidence >= 75) return "bg-warning";
   return "bg-destructive";
 };
 
+function calcDaysLeft(dueDateISO: string) {
+  // dueDateISO like "2025-11-18"
+  const due = new Date(dueDateISO);
+  const now = new Date();
+  due.setHours(0, 0, 0, 0);
+  now.setHours(0, 0, 0, 0);
+  const ms = due.getTime() - now.getTime();
+  return Math.ceil(ms / (1000 * 60 * 60 * 24));
+}
+
 export const DeadlinesTable = ({ onSelectRFP }: { onSelectRFP?: (id: string) => void }) => {
+  const [items, setItems] = useState<RFPDeadline[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState<"all" | Stage>("all");
+
+  // (Optional) keep these UI controls but not used in DB query yet
   const [selectedDeadline, setSelectedDeadline] = useState("all");
   const [selectedConfidence, setSelectedConfidence] = useState("all");
-  const [selectedStatus, setSelectedStatus] = useState("all");
 
-  const filteredDeadlines = mockDeadlines.filter((rfp) => {
-    const matchesSearch = rfp.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         rfp.client.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = selectedStatus === "all" || rfp.stage === selectedStatus;
-    return matchesSearch && matchesStatus;
-  });
+  useEffect(() => {
+    const run = async () => {
+      try {
+        setLoading(true);
+        setError(null);
 
-  const urgentCount = mockDeadlines.filter(d => d.daysLeft && d.daysLeft <= 7).length;
+        let query = supabase
+          .from("rfps")
+          .select("*")
+          .order("due_date", { ascending: true });
+
+        if (searchQuery) {
+          query = query.or(`id.ilike.%${searchQuery}%,client.ilike.%${searchQuery}%`);
+        }
+
+        if (selectedStatus !== "all") {
+          query = query.eq("stage", selectedStatus);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        const mapped: RFPDeadline[] =
+          (data ?? []).map((r: any) => ({
+            id: r.id,
+            client: r.client,
+            dueDate: new Date(r.due_date).toDateString(),
+            daysLeft: calcDaysLeft(r.due_date),
+            stage: r.stage,
+            confidence: r.confidence,
+            assignedAgent: r.assigned_agent,
+            stockRequirement: r.stock_requirement ?? "—",
+          }));
+
+        setItems(mapped);
+      } catch (e: any) {
+        setError(e?.message ?? "Failed to load");
+        setItems([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const t = setTimeout(run, 250);
+    return () => clearTimeout(t);
+  }, [searchQuery, selectedStatus]);
+
+  const filteredDeadlines = items; // already filtered by query params above
+
+  const urgentCount = useMemo(
+    () => items.filter((d) => typeof d.daysLeft === "number" && d.daysLeft <= 7).length,
+    [items]
+  );
+
+  if (loading) return <Card className="p-5">Loading…</Card>;
+  if (error) return <Card className="p-5">Error: {error}</Card>;
 
   return (
     <Card className="p-5 bg-card border border-border">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-5">
         <h3 className="font-semibold text-foreground text-lg">Upcoming Deadlines</h3>
-        
+
         <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
           <div className="relative flex-1 sm:flex-none">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -88,7 +142,7 @@ export const DeadlinesTable = ({ onSelectRFP }: { onSelectRFP?: (id: string) => 
               className="pl-9 w-full sm:w-48 h-9"
             />
           </div>
-          
+
           <Select value={selectedDeadline} onValueChange={setSelectedDeadline}>
             <SelectTrigger className="w-32 h-9">
               <Filter className="h-4 w-4 mr-2" />
@@ -113,7 +167,7 @@ export const DeadlinesTable = ({ onSelectRFP }: { onSelectRFP?: (id: string) => 
             </SelectContent>
           </Select>
 
-          <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+          <Select value={selectedStatus} onValueChange={(v) => setSelectedStatus(v as any)}>
             <SelectTrigger className="w-28 h-9">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
@@ -141,37 +195,43 @@ export const DeadlinesTable = ({ onSelectRFP }: { onSelectRFP?: (id: string) => 
               <th className="text-left py-3 px-4 text-sm font-semibold text-foreground">Stock Requirement</th>
             </tr>
           </thead>
+
           <tbody>
             {filteredDeadlines.map((rfp) => (
-              <tr 
-                key={rfp.id} 
+              <tr
+                key={rfp.id}
                 className="border-b border-border/50 hover:bg-secondary/30 cursor-pointer transition-colors"
                 onClick={() => onSelectRFP?.(rfp.id)}
               >
                 <td className="py-3 px-4 text-sm font-medium text-foreground">{rfp.id}</td>
                 <td className="py-3 px-4 text-sm text-muted-foreground">{rfp.client}</td>
+
                 <td className="py-3 px-4">
                   <div className="flex flex-col">
                     <span className="text-sm text-foreground">{rfp.dueDate}</span>
-                    {rfp.daysLeft && (
-                      <span className={cn(
-                        "text-xs font-medium",
-                        rfp.daysLeft <= 3 ? "text-destructive" : "text-warning"
-                      )}>
+                    {typeof rfp.daysLeft === "number" && (
+                      <span
+                        className={cn(
+                          "text-xs font-medium",
+                          rfp.daysLeft <= 3 ? "text-destructive" : "text-warning"
+                        )}
+                      >
                         {rfp.daysLeft} days left
                       </span>
                     )}
                   </div>
                 </td>
+
                 <td className="py-3 px-4">
                   <Badge variant="outline" className={cn("text-xs", stageConfig[rfp.stage].className)}>
                     {stageConfig[rfp.stage].label}
                   </Badge>
                 </td>
+
                 <td className="py-3 px-4">
                   <div className="flex items-center gap-2">
                     <div className="w-16 h-2 bg-secondary rounded-full overflow-hidden">
-                      <div 
+                      <div
                         className={cn("h-full rounded-full", getConfidenceColor(rfp.confidence))}
                         style={{ width: `${rfp.confidence}%` }}
                       />
@@ -179,11 +239,13 @@ export const DeadlinesTable = ({ onSelectRFP }: { onSelectRFP?: (id: string) => 
                     <span className="text-sm text-foreground">{rfp.confidence}%</span>
                   </div>
                 </td>
+
                 <td className="py-3 px-4">
                   <Badge variant="outline" className={cn("text-xs", agentConfig[rfp.assignedAgent])}>
                     {rfp.assignedAgent}
                   </Badge>
                 </td>
+
                 <td className="py-3 px-4 text-sm text-muted-foreground">{rfp.stockRequirement}</td>
               </tr>
             ))}
@@ -193,11 +255,9 @@ export const DeadlinesTable = ({ onSelectRFP }: { onSelectRFP?: (id: string) => 
 
       <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
         <span className="text-sm text-muted-foreground">
-          Showing {filteredDeadlines.length} of {mockDeadlines.length} RFPs
+          Showing {filteredDeadlines.length} of {items.length} RFPs
         </span>
-        <span className="text-sm text-warning font-medium">
-          {urgentCount} due within 7 days
-        </span>
+        <span className="text-sm text-warning font-medium">{urgentCount} due within 7 days</span>
       </div>
     </Card>
   );
