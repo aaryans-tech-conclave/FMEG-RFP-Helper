@@ -17,7 +17,9 @@ A multi-agent, dashboard-driven system that **scales and accelerates B2B RFP res
 
 ---
 
-## Slide 1 — Executive Summary
+## Executive Summary
+
+<img width="1920" height="1080" alt="3" src="https://github.com/user-attachments/assets/68f08bb4-eafd-47fb-96dc-be35423eaced" />
 
 This prototype demonstrates an **Agentic AI system** that mirrors the real enterprise workflow:
 
@@ -71,7 +73,9 @@ This prototype demonstrates an **Agentic AI system** that mirrors the real enter
 
 ---
 
-## Slide 2 — Problem Statement
+## Problem Statement
+
+<img width="1920" height="1080" alt="4" src="https://github.com/user-attachments/assets/539f0ff0-6c1b-4158-9a30-ca2434db856d" />
 
 The client (leading industrial manufacturer in FMEG) faces **delays and inefficiencies** in responding to B2B RFPs. Current workflow is **manual, siloed, time-intensive**, causing missed opportunities and slow response cycles.
 
@@ -103,7 +107,10 @@ The client (leading industrial manufacturer in FMEG) faces **delays and ineffici
 
 ---
 
-## Slide 3 — End-to-End Solution + Key Differentiators
+## End-to-End Solution + Key Differentiators
+
+<img width="1920" height="1080" alt="5" src="https://github.com/user-attachments/assets/11303869-5952-499b-ae99-0be5bb06b6a7" />
+
 
 ### Live Multi-Agent Coordination (user experience)
 1. Main Agent monitors and coordinates **Sales, Technical, Pricing** agents with live status  
@@ -125,7 +132,10 @@ The client (leading industrial manufacturer in FMEG) faces **delays and ineffici
 
 ---
 
-## Slide 4 — Deployment Snapshot: Dashboard in Action
+## Deployment Snapshot: Dashboard in Action
+
+<img width="1920" height="1080" alt="6" src="https://github.com/user-attachments/assets/d6c61d12-06a1-4e9f-8cbe-6a9bcf77f848" />
+
 
 The dashboard demonstrates **end-to-end visibility** across RFP pipeline stages.
 
@@ -149,7 +159,10 @@ The dashboard demonstrates **end-to-end visibility** across RFP pipeline stages.
 
 ---
 
-## Slide 5 — RFP Timeline + User Path to Value
+## RFP Timeline + User Path to Value
+
+<img width="1920" height="1080" alt="7" src="https://github.com/user-attachments/assets/b9ead77a-2be5-4414-adac-3c18cfe76dd1" />
+
 
 ### “RFP Timeline: Clicks to Contracts”
 1. **Open Internet Tender Sources**
@@ -176,7 +189,10 @@ The dashboard demonstrates **end-to-end visibility** across RFP pipeline stages.
 
 ---
 
-## Slide 6 — Architecture
+## Architecture
+
+<img width="1920" height="1080" alt="8" src="https://github.com/user-attachments/assets/9f94cff5-ff70-4f82-b917-569ddde6d949" />
+
 
 Architecture is decomposed into independent domain agents (Sales, Technical, Pricing, Orchestrator) running on a **4-layer LLM stack**:
 
@@ -234,7 +250,10 @@ This ensures **modularity, scalability, and precision**.
 
 ---
 
-## Slide 7 — Specification Matching Engine
+## Specification Matching Engine
+
+<img width="1920" height="1080" alt="9" src="https://github.com/user-attachments/assets/1107d348-796a-4e47-9df0-b202b9ada3b6" />
+
 
 ### Process (1 → 5)
 1. Convert RFP specifications into structured requirements  
@@ -260,7 +279,10 @@ This ensures **modularity, scalability, and precision**.
 
 ---
 
-## Slide 8 — Success Metrics + ROI
+## Success Metrics + ROI
+
+<img width="1920" height="1080" alt="10" src="https://github.com/user-attachments/assets/e547095a-adad-497a-a6e1-878d123b17a3" />
+
 
 ### Impact (headline)
 - **25% throughput increase** (higher desk-work productivity + automation of repetitive proposal steps)
@@ -296,7 +318,10 @@ Calculation shown:
 
 ---
 
-## Slide 9 — Scalability + Future Scopes
+## Scalability + Future Scopes
+
+<img width="1920" height="1080" alt="11" src="https://github.com/user-attachments/assets/ea481099-daf9-4326-856a-0ace476e0bde" />
+
 
 ### Scalability
 - **Automated RFP ingestion at scale:** continuous scanning across govt/PSU/LSTK sites
